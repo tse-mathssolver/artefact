@@ -1,19 +1,24 @@
-from flask import Flask, render_template, url_for, redirect
+from flask import Flask, render_template, url_for, redirect, flash, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import login_user, LoginManager, login_required, logout_user
 from os import urandom
 from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)
+
+# Generate random secret key on execution.
+app.config["SECRET_KEY"] = urandom(12)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///database.sqlite"
+# Stops console from being bloated with warning message.
+# https://stackoverflow.com/questions/33738467/how-do-i-know-if-i-can-disable-sqlalchemy-track-modifications
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 
 from forms import *
 from models import *
-
-# Generate random secret key on execution.
-app.config["SECRET_KEY"] = urandom(12)
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///database.sqlite"
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -36,15 +41,22 @@ def profile():
 def login():
     form = LoginForm()
 
-    if form.validate_on_submit:
-        # Attempt to load user from db.
-        user = User.query.filter_by(email=form.email.data).first()
+    if request.method == 'POST':
+        if form.validate_on_submit():
+            # Attempt to load user from db.
+            user = User.query.filter_by(email=form.email.data).first()
 
-        # Check if user exists and check inputted password matches db hash.
-        if user and bcrypt.check_password_hash(user.password, form.password.data):
-            login_user(user)
+            # Check if user exists and check inputted password matches db hash.
+            if user and bcrypt.check_password_hash(user.password, form.password.data):
+                login_user(user)
 
-            return redirect(url_for("profile"))
+                return redirect(url_for("profile"))
+            else:
+                flash("Wrong email or password.")
+        else:
+            for fieldName, errorMessages in form.errors.items():
+                for err in errorMessages:
+                    flash(err)
 
     return render_template("login.html", form=form)
 
@@ -52,20 +64,24 @@ def login():
 def register():
     form = RegisterForm()
 
-    if form.validate_on_submit():
-        # Get hash of inputted password.
-        hashed_password = bcrypt.generate_password_hash(form.password.data)
+    if request.method == 'POST':
+        if form.validate_on_submit():
+            # Get hash of inputted password.
+            hashed_password = bcrypt.generate_password_hash(form.password.data)
 
-        # Create and populate user instance then add to db.
-        user = User(email=form.email.data, password=hashed_password)
-        db.session.add(user)
-        db.session.commit()
+            # Create and populate user instance then add to db.
+            user = User(email=form.email.data, password=hashed_password)
+            db.session.add(user)
+            db.session.commit()
 
-        # Refresh user instance to populate db id and log them in.
-        db.session.refresh(user)
-        login_user(user)
+            # Login the newly registered user.
+            login_user(user)
 
-        return redirect(url_for("profile"))
+            return redirect(url_for("profile"))
+        else:
+            for fieldName, errorMessages in form.errors.items():
+                for err in errorMessages:
+                    flash(err)
 
     return render_template("register.html", form=form)
 
