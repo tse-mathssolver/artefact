@@ -3,8 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, login_user, LoginManager, login_required, logout_user, current_user
 from os import urandom
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField
-from wtforms.validators import InputRequired, Length, ValidationError
+from wtforms import StringField, PasswordField, SubmitField, EmailField
+from wtforms.validators import InputRequired, Length, ValidationError, Email
 from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)
@@ -25,21 +25,21 @@ def load_user(user_id):
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(20), nullable=False, unique=True)
+    email = db.Column(db.String(20), nullable=False, unique=True)
     password = db.Column(db.String(80), nullable=False)
 
 class RegisterForm(FlaskForm):
-    username = StringField(validators=[InputRequired(), Length(min=4, max=20)], render_kw={"placeholder": "Username"})
+    email = EmailField(validators=[InputRequired(), Email(), Length(min=4, max=20)], render_kw={"placeholder": "Email"})
     password = PasswordField(validators=[InputRequired(), Length(min=4, max=20)], render_kw={"placeholder": "Password"})
     submit = SubmitField("Register")
 
-    def validate_username(self, username):
-        username_exists = User.query.filter_by(username=username.data).first()
-        if username_exists:
-            raise ValidationError("This username already exists.")
+    def validate_email(self, email):
+        email_exists = User.query.filter_by(email=email.data).first()
+        if email_exists:
+            raise ValidationError("This email already exists.")
 
 class LoginForm(FlaskForm):
-    username = StringField(validators=[InputRequired(), Length(min=4, max=20)], render_kw={"placeholder": "Username"})
+    email = EmailField(validators=[InputRequired(), Email(), Length(min=4, max=20)], render_kw={"placeholder": "Email"})
     password = PasswordField(validators=[InputRequired(), Length(min=4, max=20)], render_kw={"placeholder": "Password"})
     submit = SubmitField("Login")
 
@@ -57,7 +57,7 @@ def login():
     form = LoginForm()
 
     if form.validate_on_submit:
-        user = User.query.filter_by(username=form.username.data).first()
+        user = User.query.filter_by(email=form.email.data).first()
 
         if user and bcrypt.check_password_hash(user.password, form.password.data):
             login_user(user)
@@ -72,7 +72,7 @@ def register():
 
     if form.validate_on_submit():
         hashed_password = bcrypt.generate_password_hash(form.password.data)
-        user = User(username=form.username.data, password=hashed_password)
+        user = User(email=form.email.data, password=hashed_password)
         db.session.add(user)
         db.session.commit()
 
