@@ -27,7 +27,7 @@ Commands should be executed in the root of the project!
    exit()
 ```
 
- 4. Run.
+ 5. Run.
 ```cmd
    flask run
 ```
