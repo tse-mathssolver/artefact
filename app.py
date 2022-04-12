@@ -3,13 +3,34 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import login_user, LoginManager, login_required, logout_user
 from os import urandom
 from flask_bcrypt import Bcrypt
+import os
+import pathlib
+import requests
+from flask import Flask, session, abort, redirect, request
+from google.oauth2 import id_token
+from google_auth_oauthlib.flow import Flow
+from pip._vendor import cachecontrol
+import google.auth.transport.requests
+
 
 app = Flask(__name__)
 
+
 # Generate random secret key on execution.
 app.config["SECRET_KEY"] = urandom(12)
-
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///database.sqlite"
+#Generate google scret key 
+GOOGLE_CLIENT_ID = "1057527171707-kvd5kdq1r42djl2jvj6s88ul0chjobcb.apps.googleusercontent.com"
+client_secrets_file = os.path.join(pathlib.Path(__file__).parent, "client_secret.json")
+
+#Redirect for google log in
+flow = Flow.from_client_secrets_file(
+    client_secrets_file=client_secrets_file,
+    scopes=["https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email", "openid"],
+    redirect_uri="https://127.0.0.1:5000/callback"
+)
+
+
 # Stops console from being bloated with warning message.
 # https://stackoverflow.com/questions/33738467/how-do-i-know-if-i-can-disable-sqlalchemy-track-modifications
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -24,18 +45,63 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
+def googlelogin_required(function):
+    def wrapper(*args, **kwargs):
+        if "google_id" not in session:
+            return abort(401)  # Authorization required
+        else:
+            return function()
+
+    return wrapper
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
 @app.route("/")
 def home():
+    
     return render_template("home.html")
 
 @app.route("/profile")
 @login_required
 def profile():
     return render_template("profile.html")
+
+@app.route("/googleprofile")
+@googlelogin_required
+def googleprofile():
+    return render_template("profile.html")
+
+@app.route("/googleform")
+def googleform():
+    authorization_url, state = flow.authorization_url()
+    session["state"] = state
+    return redirect(authorization_url)
+
+
+@app.route("/callback")
+def callback():
+    flow.fetch_token(authorization_response=request.url)
+
+    if not session["state"] == request.args["state"]:
+        abort(500)  # State does not match!
+
+    credentials = flow.credentials
+    request_session = requests.session()
+    cached_session = cachecontrol.CacheControl(request_session)
+    token_request = google.auth.transport.requests.Request(session=cached_session)
+
+    id_info = id_token.verify_oauth2_token(
+        id_token=credentials._id_token,
+        request=token_request,
+        audience=GOOGLE_CLIENT_ID
+    )
+
+    session["google_id"] = id_info.get("sub")
+    session["name"] = id_info.get("name")
+    return redirect("/googleprofile")
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -93,4 +159,4 @@ def logout():
     return redirect(url_for("home"))
 
 if __name__ == "__main__":
-    app.run(debug=True)
+     app.run(ssl_context="adhoc")
