@@ -19,15 +19,7 @@ venv\Scripts\activate.bat
 pip install -r requirements.txt
 ```
 
- 4. Create database structure.
+ 4. Run.
 ```cmd
-python
-from app import db
-db.create_all()
-exit()
-```
-
- 5. Run.
-```cmd
-flask run
+python app.py
 ```
