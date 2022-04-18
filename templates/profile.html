@@ -8,6 +8,12 @@
 </head>
 <body>
     <h1>Profile</h1>
-    <a href="{{ url_for('logout') }}">Logout</a>
+    <a href="{{ url_for('security.logout') }}">Logout</a></br>
+    {% if not current_user.has_role('social') %}
+    <a href="{{ url_for('security.change_password') }}">Change Password</a></br>
+    {% endif %}
+    <form action="{{ url_for('deleteaccount') }}" method="POST">
+        <button type="submit">Delete Account</button>
+    </form>
 </body>
 </html>

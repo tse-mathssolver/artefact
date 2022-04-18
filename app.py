@@ -1,162 +1,166 @@
-from flask import Flask, render_template, url_for, redirect, flash, request
+from flask import Flask, redirect, render_template, url_for, request
+from flask_login import current_user
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import login_user, LoginManager, login_required, logout_user
-from os import urandom
-from flask_bcrypt import Bcrypt
-import os
-import pathlib
-import requests
-from flask import Flask, session, abort, redirect, request
-from google.oauth2 import id_token
-from google_auth_oauthlib.flow import Flow
-from pip._vendor import cachecontrol
-import google.auth.transport.requests
+from flask_security import Security, SQLAlchemyUserDatastore, auth_required, hash_password, anonymous_user_required, login_user
+from flask_security.models import fsqla_v2 as fsqla
+from flask_mail import Mail
+from oauthlib.oauth2 import WebApplicationClient
+from requests import get, post
+from json import dumps
 
-
+# Create app
 app = Flask(__name__)
-
+app.config.from_pyfile('config.cfg')
 
 # Generate random secret key on execution.
-app.config["SECRET_KEY"] = urandom(12)
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///database.sqlite"
-#Generate google scret key 
-GOOGLE_CLIENT_ID = "1057527171707-kvd5kdq1r42djl2jvj6s88ul0chjobcb.apps.googleusercontent.com"
-client_secrets_file = os.path.join(pathlib.Path(__file__).parent, "client_secret.json")
-
-#Redirect for google log in
-flow = Flow.from_client_secrets_file(
-    client_secrets_file=client_secrets_file,
-    scopes=["https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email", "openid"],
-    redirect_uri="https://127.0.0.1:5000/callback"
-)
-
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
 
 # Stops console from being bloated with warning message.
 # https://stackoverflow.com/questions/33738467/how-do-i-know-if-i-can-disable-sqlalchemy-track-modifications
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+app.config['SECURITY_REGISTERABLE'] = True
+app.config['SECURITY_RECOVERABLE'] = True
+app.config['SECURITY_CHANGEABLE'] = True
+app.config["SECURITY_SEND_REGISTER_EMAIL"] = False
+app.config["SECURITY_SEND_PASSWORD_RESET_NOTICE_EMAIL"] = False
+app.config["SECURITY_SEND_PASSWORD_CHANGE_EMAIL"] = False
+
+# Configuration
+app.config["GOOGLE_DISCOVERY_URL"] = ("https://accounts.google.com/.well-known/openid-configuration")
+
+mail = Mail(app)
 db = SQLAlchemy(app)
-bcrypt = Bcrypt(app)
+client = WebApplicationClient(app.config["GOOGLE_CLIENT_ID"])
 
-from forms import *
-from models import *
+# Define models
+fsqla.FsModels.set_db_info(db)
 
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = "login"
+class Role(db.Model, fsqla.FsRoleMixin):
+    pass
 
-def googlelogin_required(function):
-    def wrapper(*args, **kwargs):
-        if "google_id" not in session:
-            return abort(401)  # Authorization required
-        else:
-            return function()
+class User(db.Model, fsqla.FsUserMixin):
+    pass
 
-    return wrapper
+# Setup Flask-Security
+user_datastore = SQLAlchemyUserDatastore(db, User, Role)
+security = Security(app, user_datastore)
 
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+# Function for getting Google OpenID configuration.
+def get_google_provider_cfg():
+    return get(app.config["GOOGLE_DISCOVERY_URL"]).json()
 
+# Create test user and add social role for users who sign in with Google.
+@app.before_first_request
+def create_user():
+    db.drop_all()
+    db.create_all()
+    if not user_datastore.find_user(email="test@me.com"):
+        user_datastore.create_user(email="test@me.com", password=hash_password("password"))
+    
+    if not user_datastore.find_role(role="social"):
+        user_datastore.create_role(name="social", permissions=[])
+
+    db.session.commit()
+
+# Homepage
 @app.route("/")
 def home():
-    
     return render_template("home.html")
 
-@app.route("/profile")
-@login_required
-def profile():
-    return render_template("profile.html")
+# Sign in with Google page
+@app.route("/login/google")
+@anonymous_user_required
+def googlelogin():
+    # Find out what URL to hit for Google login
+    google_provider_cfg = get_google_provider_cfg()
+    authorization_endpoint = google_provider_cfg["authorization_endpoint"]
 
-@app.route("/googleprofile")
-@googlelogin_required
-def googleprofile():
-    return render_template("profile.html")
+    # Use library to construct the request for Google login and provide
+    # scopes that let you retrieve user's profile from Google
+    request_uri = client.prepare_request_uri(
+        authorization_endpoint,
+        redirect_uri=request.base_url + "/callback",
+        scope=["openid", "email", "profile"],
+    )
+    return redirect(request_uri)
 
-@app.route("/googleform")
-def googleform():
-    authorization_url, state = flow.authorization_url()
-    session["state"] = state
-    return redirect(authorization_url)
-
-
-@app.route("/callback")
+# Sign in with Google callback page
+# https://realpython.com/flask-google-login/
+@app.route("/login/google/callback")
+@anonymous_user_required
 def callback():
-    flow.fetch_token(authorization_response=request.url)
+    # Get authorization code Google sent back to you
+    code = request.args.get("code")
 
-    if not session["state"] == request.args["state"]:
-        abort(500)  # State does not match!
+    # Find out what URL to hit to get tokens that allow you to ask for
+    # things on behalf of a user
+    google_provider_cfg = get_google_provider_cfg()
+    token_endpoint = google_provider_cfg["token_endpoint"]
 
-    credentials = flow.credentials
-    request_session = requests.session()
-    cached_session = cachecontrol.CacheControl(request_session)
-    token_request = google.auth.transport.requests.Request(session=cached_session)
-
-    id_info = id_token.verify_oauth2_token(
-        id_token=credentials._id_token,
-        request=token_request,
-        audience=GOOGLE_CLIENT_ID
+    # Prepare and send a request to get tokens! Yay tokens!
+    token_url, headers, body = client.prepare_token_request(
+        token_endpoint,
+        authorization_response=request.url,
+        redirect_url=request.base_url,
+        code=code
+    )
+    token_response = post(
+        token_url,
+        headers=headers,
+        data=body,
+        auth=(app.config["GOOGLE_CLIENT_ID"], app.config["GOOGLE_CLIENT_SECRET"]),
     )
 
-    session["google_id"] = id_info.get("sub")
-    session["name"] = id_info.get("name")
-    return redirect("/googleprofile")
+    # Parse the tokens!
+    client.parse_request_body_response(dumps(token_response.json()))
 
+    # Now that you have tokens (yay) let's find and hit the URL
+    # from Google that gives you the user's profile information,
+    # including their Google profile image and email
+    userinfo_endpoint = google_provider_cfg["userinfo_endpoint"]
+    uri, headers, body = client.add_token(userinfo_endpoint)
+    userinfo_response = get(uri, headers=headers, data=body)
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    form = LoginForm()
+    # You want to make sure their email is verified.
+    # The user authenticated with Google, authorized your
+    # app, and now you've verified their email through Google!
+    if not userinfo_response.json().get("email_verified"):
+        return "User email not available or not verified by Google.", 400
 
-    if request.method == 'POST':
-        if form.validate_on_submit():
-            # Attempt to load user from db.
-            user = User.query.filter_by(email=form.email.data).first()
+    email = userinfo_response.json()["email"]
 
-            # Check if user exists and check inputted password matches db hash.
-            if user and bcrypt.check_password_hash(user.password, form.password.data):
-                login_user(user)
+    user = user_datastore.find_user(email=email)
 
-                return redirect(url_for("profile"))
-            else:
-                flash("Wrong email or password.")
-        else:
-            for fieldName, errorMessages in form.errors.items():
-                for err in errorMessages:
-                    flash(err)
+    if user and user.has_role(role="social"):
+        login_user(user)
 
-    return render_template("login.html", form=form)
+    elif user and not user.has_role(role="social"):
+        return "This account is not associated with a Google Account.", 400
 
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    form = RegisterForm()
-
-    if request.method == 'POST':
-        if form.validate_on_submit():
-            # Get hash of inputted password.
-            hashed_password = bcrypt.generate_password_hash(form.password.data)
-
-            # Create and populate user instance then add to db.
-            user = User(email=form.email.data, password=hashed_password)
-            db.session.add(user)
-            db.session.commit()
-
-            # Login the newly registered user.
-            login_user(user)
-
-            return redirect(url_for("profile"))
-        else:
-            for fieldName, errorMessages in form.errors.items():
-                for err in errorMessages:
-                    flash(err)
-
-    return render_template("register.html", form=form)
-
-@app.route("/logout", methods=["GET", "POST"])
-@login_required
-def logout():
-    logout_user()
+    else:
+        # FIX: Need to fix sign in with Google users so they are not created with password and cannot be
+        # logged in using standard login page.
+        newuser = user_datastore.create_user(email=email, password=hash_password("password"), roles=["social"])
+        db.session.commit()
+        login_user(newuser)
     
     return redirect(url_for("home"))
 
+# Profile page
+@app.route("/profile")
+@auth_required()
+def profile():
+    return render_template("profile.html")
+
+# Delete account API
+@app.route("/deleteaccount", methods=["POST"])
+@auth_required()
+def deleteaccount():
+    user_datastore.delete_user(current_user)
+    db.session.commit()
+    return redirect(url_for("home"))
+
+# SSL Adhoc so we can run app without SSL cert.
 if __name__ == "__main__":
-     app.run(ssl_context="adhoc")
+    app.run(ssl_context="adhoc")
