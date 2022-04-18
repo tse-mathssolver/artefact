@@ -502,9 +502,6 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# Maths Solver User Database
-database.sqlite
-
 # General
 .DS_Store
 .AppleDouble
@@ -532,3 +529,7 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Maths Solver
+database.sqlite
+config.cfg
