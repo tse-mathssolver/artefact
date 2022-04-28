@@ -1,7 +1,7 @@
 from flask import Flask, redirect, render_template, url_for, request
 from flask_login import current_user
 from flask_sqlalchemy import SQLAlchemy
-from flask_security import Security, SQLAlchemyUserDatastore, auth_required, hash_password, anonymous_user_required, login_user
+from flask_security import Security, SQLAlchemyUserDatastore, auth_required, hash_password, anonymous_user_required, login_user, roles_required
 from flask_security.models import fsqla_v2 as fsqla
 from flask_mail import Mail
 from oauthlib.oauth2 import WebApplicationClient
@@ -55,11 +55,14 @@ def get_google_provider_cfg():
 def create_user():
     db.drop_all()
     db.create_all()
-    if not user_datastore.find_user(email="test@me.com"):
-        user_datastore.create_user(email="test@me.com", password=hash_password("password"))
-    
     if not user_datastore.find_role(role="social"):
         user_datastore.create_role(name="social", permissions=[])
+    
+    if not user_datastore.find_role(role="admin"):
+        user_datastore.create_role(name="admin", permissions=[])
+    
+    if not user_datastore.find_user(email="test@me.com"):
+        user_datastore.create_user(email="test@me.com", password=hash_password("password"), roles=["admin"])
 
     db.session.commit()
 
@@ -160,6 +163,37 @@ def deleteaccount():
     user_datastore.delete_user(current_user)
     db.session.commit()
     return redirect(url_for("home"))
+
+@app.route("/history")
+@auth_required()
+def history():
+    return ""
+
+@app.route("/feedback")
+@auth_required()
+def feedback():
+    return ""
+
+@app.route("/viewfeedback")
+@roles_required('admin')
+def viewfeedback():
+    return ""
+
+@app.route("/help")
+def gethelp():
+    return ""
+
+@app.route("/about")
+def about():
+    return ""
+
+@app.route("/camera")
+def camera():
+    return ""
+
+@app.route("/upload")
+def upload():
+    return ""
 
 # SSL Adhoc so we can run app without SSL cert.
 if __name__ == "__main__":

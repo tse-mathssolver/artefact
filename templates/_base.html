@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
+    <meta name="generator" content="Hugo 0.88.1">
+    <title>Maths Solver</title>
+
+    <link rel="canonical" href="https://getbootstrap.com/docs/5.1/examples/headers/">
+
+    
+
+    <!-- Bootstrap core CSS -->
+<link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+    
+    <!-- Custom styles for this template -->
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+  </head>
+  <body>
+
+<main>
+  <header class="p-3 bg-dark text-white">
+    <div class="container">
+      <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-lg-start">
+
+        <ul class="nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
+          <li><a href="{{url_for('home')}}" class="nav-link px-2 text-secondary">Home</a></li>
+          {% if current_user.is_authenticated %}
+          <li><a href="{{url_for('history')}}" class="nav-link px-2 text-white">Solution History</a></li>
+          <li><a href="{{url_for('feedback')}}" class="nav-link px-2 text-white">Give Feedback</a></li>
+          {% endif %}
+          {% if current_user.has_role('admin') %}
+          <li><a href="{{url_for('viewfeedback')}}" class="nav-link px-2 text-white">View Feedback</a></li>
+          {% endif %}
+          <li><a href="{{url_for('gethelp')}}" class="nav-link px-2 text-white">Help</a></li>
+          <li><a href="{{url_for('about')}}" class="nav-link px-2 text-white">About</a></li>
+        </ul>
+
+        <div class="text-end">
+          {% if current_user.is_authenticated %}
+          <a class="btn btn-warning me-2"         href="{{url_for('profile')}}" role="button">My Account</a>
+          <a class="btn btn-danger me-2"          href="{{url_for('security.logout')}}" role="button">Logout</a>
+          {% else %}
+          <a class="btn btn-outline-warning me-2" href="{{url_for('security.register')}}" role="button">Register</a>
+          <a class="btn btn-outline-success me-2" href="{{url_for('googlelogin')}}" role="button">Google Login</a>
+          <a class="btn btn-outline-success me-2" href="{{url_for('security.login')}}" role="button">Login</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </header>
+
+  {% block content %}{% endblock %}
+
+</main>
+
+
+    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+
+      
+  </body>
+</html>

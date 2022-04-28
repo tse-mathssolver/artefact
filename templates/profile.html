@@ -1,19 +1,15 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile</title>
-</head>
-<body>
-    <h1>Profile</h1>
-    <a href="{{ url_for('security.logout') }}">Logout</a></br>
-    {% if not current_user.has_role('social') %}
-    <a href="{{ url_for('security.change_password') }}">Change Password</a></br>
-    {% endif %}
-    <form action="{{ url_for('deleteaccount') }}" method="POST">
-        <button type="submit">Delete Account</button>
-    </form>
-</body>
-</html>
+{% extends "_base.html" %}
+
+{% block content %}
+<section class="py-2 container">
+  <div class="row py-lg-5">
+    <div class="col-lg-3 col-md-8 mx-auto">
+      <h1 class="fw-light text-center">Login</h1><br>
+      <a class="btn btn-danger me-2" href="{{url_for('deleteaccount')}}" role="button">Delete Account</a>
+      {% if not current_user.has_role('social') %}
+      <a class="btn btn-success me-2" href="{{ url_for('security.change_password') }}" role="button">Change Password</a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

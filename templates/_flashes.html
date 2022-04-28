@@ -1,0 +1,7 @@
+{% macro errors(form) %}
+{% for field, errors in form.errors.items() %}
+<br><div class="alert alert-danger" role="alert">
+{{ ', '.join(errors) }}
+</div>
+{% endfor %}
+{% endmacro %}
