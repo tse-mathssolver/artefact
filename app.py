@@ -7,9 +7,17 @@ from flask_mail import Mail
 from oauthlib.oauth2 import WebApplicationClient
 from requests import get, post
 from json import dumps
-
-# Create app
+from flask import Flask, render_template, request, redirect, url_for
+from flask_wtf import FlaskForm
+from wtforms import StringField, validators, PasswordField, SubmitField
+from wtforms.validators import DataRequired, Email
+from flask_bootstrap import Bootstrap
+import email_validator
+import csv
 app = Flask(__name__)
+Bootstrap(app)
+# Create app
+
 app.config.from_pyfile('config.cfg')
 
 # Generate random secret key on execution.
@@ -168,16 +176,37 @@ def deleteaccount():
 @auth_required()
 def history():
     return ""
-
-@app.route("/feedback")
+#Class that contains the elements of the form
+class contactForm(FlaskForm):
+    name = StringField(label='Name', validators=[DataRequired()])
+    email = StringField(label='Email', validators=[DataRequired(), Email(granular_message=True)])
+    message = StringField(label='Message')
+    submit = SubmitField(label="Submit")
+@app.route("/feedback", methods=["GET", "POST"])
 @auth_required()
 def feedback():
-    return ""
+    cform=contactForm()
+    
+    if cform.validate_on_submit():
+        #Done and send
+        with open('C//path//to//csv_file', 'w', encoding='UTF8') as f:
+        
+            writer = csv.writer(f)
+
+            # write a row to the csv file
+            writer.writerow([cform.name.data, cform.email.data,
+                  cform.message.data])
+        return render_template('completefeedback.html',form=cform)
+    else:
+        return render_template("feedback.html",form=cform)
+
 
 @app.route("/viewfeedback")
 @roles_required('admin')
 def viewfeedback():
     return ""
+
+
 
 @app.route("/help")
 def gethelp():
