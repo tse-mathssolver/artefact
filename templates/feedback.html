@@ -1,0 +1,31 @@
+{% extends '_base.html' %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}
+    Feedback
+
+    {% for message in form.name.errors %}
+<div class="flash">{{ message }}</div>
+    {% endfor %}
+
+    {% for message in form.email.errors %}
+<div class="flash">{{ message }}</div>
+    {% endfor %}
+
+    {% for message in form.subject.errors %}
+<div class="flash">{{ message }}</div>
+    {% endfor %}
+
+    {% for message in form.message.errors %}
+<div class="flash">{{ message }}</div>
+    {% endfor %}
+   
+        {% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Feedback</h1>
+    {{ wtf.quick_form(form) }}
+</div>
+
+{% endblock %}
