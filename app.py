@@ -6,7 +6,6 @@ from flask_security.models import fsqla_v2 as fsqla
 from flask_mail import Mail
 from oauthlib.oauth2 import WebApplicationClient
 from requests import get, post
-from werkzeug.utils import secure_filename
 from azure_ocr import Azure_OCR
 from solver import solver
 from flask_wtf import FlaskForm
@@ -14,7 +13,11 @@ from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired, Email
 from flask_bootstrap import Bootstrap
 from json import dumps
-
+from flask_wtf import FlaskForm
+from wtforms import StringField, SubmitField
+from wtforms.validators import DataRequired, Email
+from flask_bootstrap import Bootstrap
+import csv
 import base64
 import json
 import os
