@@ -1,4 +1,4 @@
-from flask import Flask, redirect, render_template, url_for, request
+from flask import Flask, redirect, render_template, url_for, request, flash, session
 from flask_login import current_user
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import Security, SQLAlchemyUserDatastore, auth_required, hash_password, anonymous_user_required, login_user, roles_required
@@ -6,11 +6,21 @@ from flask_security.models import fsqla_v2 as fsqla
 from flask_mail import Mail
 from oauthlib.oauth2 import WebApplicationClient
 from requests import get, post
-from json import dumps
+from werkzeug.utils import secure_filename
+from azure_ocr import Azure_OCR
+from solver import solver
+
+import base64
+import json
+import os
+import glob
+import uuid
 
 # Create app
 app = Flask(__name__)
 app.config.from_pyfile('config.cfg')
+
+azure = Azure_OCR(app.config["AZURE_OCR_SUBSCRIPTION_KEY"], app.config["AZURE_OCR_ENDPOINT"])
 
 # Generate random secret key on execution.
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
@@ -187,14 +197,117 @@ def gethelp():
 def about():
     return ""
 
-@app.route("/camera")
-def camera():
-    return ""
+app.config["IMAGE_UPLOAD_PATH"] = "uploads"
+app.config["ALLOWED_FILE_TYPES"] = ["PNG", "JPG", "JPEG"]
 
-@app.route("/upload")
+def get_uuid():
+    id = ""
+
+    if 'uuid' not in session:
+        id = uuid.uuid1()
+        session["uuid"] = id
+    else:
+        id = session["uuid"]
+    
+    return id.hex
+
+def delete_prev_upload():
+    for file in glob.glob(os.path.join(app.config["IMAGE_UPLOAD_PATH"]) + "/" + get_uuid() + ".*"):
+        os.remove(file)
+
+def allowed_file(filename):
+    if not "." in filename:
+        return False
+    
+    ext = filename.rsplit(".", 1)[1]
+
+    if ext.upper() in app.config["ALLOWED_FILE_TYPES"]:
+        return True
+    else:
+        return False
+
+def upload_file(request):
+    if request.method == "POST":
+        if request.files:
+            image = request.files["image"]
+
+            if image.filename == "":
+                flash("No image selected")
+                return redirect(request.url)
+
+            if image.filename.rsplit(".", 1)[0] == "":
+                flash("File must have a name")
+                return redirect(request.url)
+
+            if not allowed_file(image.filename):
+                flash("File extension is not allowed")
+                return redirect(request.url)
+            else:
+                filename = get_uuid() + "." + image.filename.rsplit(".", 1)[1]
+
+            delete_prev_upload()
+
+            image.save(os.path.join(app.config["IMAGE_UPLOAD_PATH"], filename))
+
+            return True
+
+@app.route("/upload", methods=["GET", "POST"])
 def upload():
-    return ""
+    if upload_file(request) == True:
+        return redirect(url_for("calculating"))
+
+    return render_template("upload.html")
+
+@app.route("/camera", methods=["GET", "POST"])
+def camera():
+    if request.method == "POST":
+        data = json.loads(request.data)
+        imgData = data["image"]
+
+        with open('base64image.txt', 'w') as f:
+            f.write(imgData)
+
+        output=b'+/'
+
+        delete_prev_upload()
+
+        with open(os.path.join(app.config["IMAGE_UPLOAD_PATH"]) + "/" + get_uuid() + ".png", "wb") as fh:
+            fh.write(base64.b64decode(imgData, output))
+
+        return redirect(url_for("calculating"))
+        
+    return render_template("camera.html")
+
+@app.route("/calculating", methods=['GET', 'POST'])
+def calculating():
+    if not glob.glob(os.path.join(app.config["IMAGE_UPLOAD_PATH"]) + "/" + get_uuid() + ".*"):
+        return redirect(url_for("home"))
+
+    return render_template("calculating.html")
+    
+
+@app.route("/result")
+def result(): 
+    if not glob.glob(os.path.join(app.config["IMAGE_UPLOAD_PATH"]) + "/" + get_uuid() + ".*"):
+        return redirect(url_for("home"))
+
+    image_path = glob.glob(os.path.join(app.config["IMAGE_UPLOAD_PATH"]) + "/" + get_uuid() + ".*")[0]
+
+    equations = azure.read_equations(image_path)
+    os.remove(glob.glob(os.path.join(app.config["IMAGE_UPLOAD_PATH"]) + "/" + get_uuid() + ".*")[0])
+
+    results = []
+
+    for equation in equations:
+        answer = solver(equation)
+
+        if answer == None:
+            answer = "Could not solve."
+
+        results.append([equation, answer])
+        
+    return render_template("result.html", results = results)
 
 # SSL Adhoc so we can run app without SSL cert.
 if __name__ == "__main__":
-    app.run(ssl_context="adhoc")
+    app.run(ssl_context="adhoc", port="5000")

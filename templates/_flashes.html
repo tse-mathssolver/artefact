@@ -5,3 +5,13 @@
 </div>
 {% endfor %}
 {% endmacro %}
+
+{% macro upload_errors() %}
+    {% with messages = get_flashed_messages() %}
+        {% for message in messages %}
+        <br><div class="alert alert-danger" role="alert">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endwith %}
+{% endmacro %}

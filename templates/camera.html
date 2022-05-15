@@ -1,0 +1,109 @@
+{% extends '_base.html' %}
+{% from "_uploading.html" import upload_spinner %}
+
+{% block content %}
+
+<section>
+  <div class="py-2 container">{{ upload_spinner() }} </div>
+  <div id="camera" style="position: fixed; width: 100%; height: 100%; top:0; left:0; right:0; bottom:0; z-index: 999;">
+     <video style="position: absolute; margin:auto; left:0; right:0; max-height:100% !important; z-index: -1;" id="video" autoplay>Allow permissions for camera access </video>
+    <canvas style="position: absolute; margin:auto; left:0; right:0; max-height:100% !important; z-index: 999;" id="canvas"></canvas>
+        <div id="buttons" style="position:absolute; text-align: center; width:100%; z-index: 999; bottom:5%;">
+          
+          <button id="back" onclick="history.back()" style="display:none; position: absolute; left: 20%; top: 20px;"class="btn btn-secondary btn-lg">Back</button>
+          <span id="shutter" onClick="takeScreenshot()" style="display:inline-block; font-size: 85px !important; filter: brightness(0) invert(1);" class="material-icons">
+          circle
+        </span>
+      
+        <div id="imgButtons" style="display: none; position: absolute; margin: auto; left:0; right: 0; bottom: 10%">
+          <button class="btn btn-primary" onclick="submitPhoto()">Submit</button>
+          <button class="btn btn-secondary" onclick="retakePhoto()">Retake</button>
+        </div>
+      </div>
+      </div>
+</section>
+
+<script type="text/javascript">
+
+video = document.getElementById("video");
+canvas = document.getElementById("canvas");
+
+buttons = document.getElementById("buttons");
+shutter = document.getElementById("shutter");
+back = document.getElementById("back");
+imgButtons = document.getElementById("imgButtons");
+
+document.addEventListener('DOMContentLoaded', function() {
+  startCamera()
+}, false);
+
+const constraints = {
+  video: {
+    width: {
+      ideal: 1920
+    },
+    height: {
+      ideal: 1080
+    },
+    facingMode: {
+      ideal: 'environment'
+    }
+  }
+};
+
+function startCamera(){
+  if ('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices) {
+    const startStream = async (constraints) => {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = stream;
+
+      document.getElementsByTagName("header")[0].style.display= "none";
+      back.style.display = "inline-block";
+      document.getElementById("camera").style.backgroundColor = "black";
+    };
+
+    startStream(constraints);
+  }
+  else{
+    alert("No camera support")
+  }
+}
+
+function takeScreenshot(){
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+
+  shutter.style.display = "none";
+  back.style.display = "none";
+  imgButtons.style.display = "inline-block";
+  canvas.style.display = "block";
+}
+
+function retakePhoto(){
+  shutter.style.display = "inline";
+  back.style.display = "inline-block";
+  imgButtons.style.display = "none";
+  canvas.style.display = "none";
+}
+
+function submitPhoto(){
+  document.getElementById("spinner").style.display = "block";
+  document.getElementsByTagName("header")[0].style.display= "block";
+  document.getElementById("camera").style.display = "none";
+
+  let image_base64 = document.querySelector("#canvas").toDataURL().replace(/^data:image\/png;base64,/, "");
+  let data = {image: (image_base64)};
+
+  fetch("/camera", {
+  method: "POST",
+  headers: {'Content-Type': 'application/json; charset=UTF-8'}, 
+  body: JSON.stringify(data)
+}).then(res => {
+  console.log("Request complete! response:", res);
+  document.location.href="calculating"
+});
+}
+
+</script>
+{% endblock %}

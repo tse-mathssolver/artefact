@@ -1,0 +1,34 @@
+{% extends '_base.html' %}
+{% from "_flashes.html" import upload_errors %}
+{% from "_uploading.html" import upload_spinner %}
+
+{% block content %}
+<section class="py-2 container">
+  {{ upload_errors() }}
+  {{ upload_spinner() }}
+  <div class="row py-lg-5">
+    <div  id="content" class="col-lg-6 col-md-8 mx-auto text-center">
+      <h1 class="fw-light text-center">Select Image</h1>
+      <p>
+        <form action="/upload" method="POST" enctype="multipart/form-data" name="upload_image_form">
+          <div class="form-group">
+            <div class="input-group mb-3">
+              <input class="form-control" type="file" accept="image/png, image/jpeg" name="image" id="image">
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" onclick="showSpinner()">Upload image</button>
+
+        </form>
+      </p>
+    </div>
+  </div>
+</section>
+
+<script>
+  function showSpinner() {
+    document.getElementById("spinner").style.display = "block";
+    document.getElementById("content").style.display = "none";
+  }
+</script>
+{% endblock %}
