@@ -9,15 +9,24 @@ from requests import get, post
 from werkzeug.utils import secure_filename
 from azure_ocr import Azure_OCR
 from solver import solver
+from flask_wtf import FlaskForm
+from wtforms import StringField, SubmitField
+from wtforms.validators import DataRequired, Email
+from flask_bootstrap import Bootstrap
+from json import dumps
 
 import base64
 import json
 import os
 import glob
 import uuid
+import csv
 
 # Create app
 app = Flask(__name__)
+Bootstrap(app)
+# Create app
+
 app.config.from_pyfile('config.cfg')
 
 azure = Azure_OCR(app.config["AZURE_OCR_SUBSCRIPTION_KEY"], app.config["AZURE_OCR_ENDPOINT"])
@@ -178,16 +187,37 @@ def deleteaccount():
 @auth_required()
 def history():
     return ""
-
-@app.route("/feedback")
+#Class that contains the elements of the form
+class contactForm(FlaskForm):
+    name = StringField(label='Name', validators=[DataRequired()])
+    email = StringField(label='Email', validators=[DataRequired(), Email(granular_message=True)])
+    message = StringField(label='Message')
+    submit = SubmitField(label="Submit")
+@app.route("/feedback", methods=["GET", "POST"])
 @auth_required()
 def feedback():
-    return ""
+    cform=contactForm()
+    
+    if cform.validate_on_submit():
+        #Done and send
+        with open('C//path//to//csv_file', 'w', encoding='UTF8') as f:
+        
+            writer = csv.writer(f)
+
+            # write a row to the csv file
+            writer.writerow([cform.name.data, cform.email.data,
+                  cform.message.data])
+        return render_template('completefeedback.html',form=cform)
+    else:
+        return render_template("feedback.html",form=cform)
+
 
 @app.route("/viewfeedback")
 @roles_required('admin')
 def viewfeedback():
     return ""
+
+
 
 @app.route("/help")
 def gethelp():
@@ -264,9 +294,6 @@ def camera():
         data = json.loads(request.data)
         imgData = data["image"]
 
-        with open('base64image.txt', 'w') as f:
-            f.write(imgData)
-
         output=b'+/'
 
         delete_prev_upload()
@@ -310,4 +337,4 @@ def result():
 
 # SSL Adhoc so we can run app without SSL cert.
 if __name__ == "__main__":
-    app.run(ssl_context="adhoc", port="5000")
+    app.run(ssl_context="adhoc")

@@ -10,3 +10,6 @@ oauthlib==3.2.0
 requests==2.27.1
 sympy==1.10.1
 Werkzeug==2.0.3
+pyOpenSSL==22.0.0
+Flask-Bootstrap==3.3.7.0
+Flask-WTF==1.0.0
