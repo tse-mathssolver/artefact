@@ -1,0 +1,20 @@
+{% extends '_base.html' %}
+
+{% block content %}
+<section class="py-2 text-center container">
+  <div class="row py-lg-5">
+    <div class="col-lg-6 col-md-8 mx-auto">
+      {% if results|length > 0 %}
+      <h1 class="fw-light">Your past equations:</h1>
+      {% else %}
+      <h1 class="fw-light">No equations were found...</h1>
+      {% endif %}
+
+      {% for result in results %}
+      <h2 class="lead text-muted">{{ result[0] }}</h2>
+      <p style="padding-bottom: 10px;" class="lead text-muted">Answer: {{ result[1] }}</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

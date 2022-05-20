@@ -24,12 +24,14 @@ def solver(eq):
     for index in x_indexs:
         temp = list(eq)
 
-        if (index+1) < len(eq) and not any(eq[index+1] in char for char in OTHER_SYMBOLS) and not any(eq[index+1] in char for char in MULTIPLY_SYMBOLS):
+        if (index+1) < len(eq) and not any(eq[index+1] in char for char in OTHER_SYMBOLS) and not any(eq[index+1] in char for char in MULTIPLY_SYMBOLS) and not (eq[index+1] == "*" and eq[index+2] == "*"):
             temp[index] = "*"
         else:
             temp[index] = "x"
 
         eq = "".join(temp)
+
+    print(eq)
 
     try:
         eq_left = 0

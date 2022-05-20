@@ -6,6 +6,7 @@ from flask_security.models import fsqla_v2 as fsqla
 from flask_mail import Mail
 from oauthlib.oauth2 import WebApplicationClient
 from requests import get, post
+from sqlalchemy import literal_column
 from azure_ocr import Azure_OCR
 from solver import solver
 from flask_wtf import FlaskForm
@@ -13,17 +14,12 @@ from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired, Email
 from flask_bootstrap import Bootstrap
 from json import dumps
-from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField
-from wtforms.validators import DataRequired, Email
-from flask_bootstrap import Bootstrap
 import csv
 import base64
 import json
 import os
 import glob
 import uuid
-import csv
 
 # Create app
 app = Flask(__name__)
@@ -63,6 +59,24 @@ class Role(db.Model, fsqla.FsRoleMixin):
 
 class User(db.Model, fsqla.FsUserMixin):
     pass
+
+class History(db.Model):
+    id = db.Column(db.Integer(), primary_key = True)
+    user_id = db.Column(db.Integer())
+    equation = db.Column(db.String(255))
+    answer = db.Column(db.String(255))
+
+    def __init__(self, user, equation, answer):
+        self.user_id = get_user_id(user)
+        self.equation = equation
+        self.answer = answer
+
+    def __repr__(self):
+        return '<Equation %r>' % self.equation
+    
+db.create_all()
+db.session.commit()
+
 
 # Setup Flask-Security
 user_datastore = SQLAlchemyUserDatastore(db, User, Role)
@@ -186,10 +200,17 @@ def deleteaccount():
     db.session.commit()
     return redirect(url_for("home"))
 
+
 @app.route("/history")
 @auth_required()
 def history():
-    return ""
+    results = []
+    user_history = History.query.filter_by(user_id=(get_user_id(current_user))).all()
+    for result in user_history:
+        results.append([result.equation, result.answer])
+
+    return render_template("history.html", results = results)
+
 #Class that contains the elements of the form
 class contactForm(FlaskForm):
     name = StringField(label='Name', validators=[DataRequired()])
@@ -315,9 +336,12 @@ def calculating():
 
     return render_template("calculating.html")
     
+def get_user_id(user):
+    return [int(s) for s in str(user) if s.isdigit()][0]
 
 @app.route("/result")
 def result(): 
+    
     if not glob.glob(os.path.join(app.config["IMAGE_UPLOAD_PATH"]) + "/" + get_uuid() + ".*"):
         return redirect(url_for("home"))
 
@@ -333,6 +357,10 @@ def result():
 
         if answer == None:
             answer = "Could not solve."
+        else:
+            history_entry = History(current_user, equation, answer)
+            db.session.add(history_entry)
+            db.session.commit()
 
         results.append([equation, answer])
         
