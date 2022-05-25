@@ -193,7 +193,7 @@ def profile():
     return render_template("profile.html")
 
 # Delete account API
-@app.route("/deleteaccount", methods=["POST"])
+@app.route("/deleteaccount", methods=["GET"])
 @auth_required()
 def deleteaccount():
     user_datastore.delete_user(current_user)
@@ -224,7 +224,7 @@ def feedback():
     
     if cform.validate_on_submit():
         #Done and send
-        with open('C//path//to//csv_file', 'w', encoding='UTF8') as f:
+        with open('feedback.csv', 'w', encoding='UTF8') as f:
         
             writer = csv.writer(f)
 
